@@ -1,0 +1,10 @@
+# compile verilog/system verilog design source files
+verilog xil_defaultlib  --include "../../../../../MAC" \
+"../../../../test_0.srcs/sources_1/new/beam_scan.v" \
+"../../../../test_0.srcs/sim_1/new/tb_beam_scan_ue.v" \
+
+# compile glbl module
+verilog xil_defaultlib "glbl.v"
+
+# Do not sort compile order
+nosort

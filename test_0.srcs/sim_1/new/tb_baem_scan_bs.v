@@ -71,7 +71,7 @@ module tb_beam_scan_bs;
         scan_Pulse = 0;
         currentScanSlot = 8'd0;
         bit_out_tready = 0;
-        bit_in_tdata = 16'hABCD;
+        bit_in_tdata = 16'hABAB;
         bit_in_tvalid = 0;
         bit_in_tkeep = 2'b00;
         bit_in_tstrb = 2'b00;
@@ -95,10 +95,10 @@ module tb_beam_scan_bs;
                 for(j = 2; j < 8; j = j + 1)begin
                     bit_in_tdata = j; bit_in_tvalid = 1; bit_in_tkeep = 2'b11; bit_in_tstrb = 2'b00; bit_in_tlast = 0;
                     #20;
-                end                                         
-                bit_in_tdata = 16'hABCD;
-//                #120; // Wait for the data to be received        
-                bit_in_tvalid = 0;
+                    
+                end
+                bit_in_tdata = 16'hABCD;            
+                bit_in_tvalid = 0;                             
                 #20;
             end
 //            #100; // Wait for the next slot

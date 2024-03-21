@@ -1,0 +1,7 @@
+Running: xsim.dir/tb_beam_scan_ue_behav/xsimk.exe -simmode gui -wdb tb_beam_scan_ue_behav.wdb -simrunnum 0 -socket 10969
+Design successfully loaded
+Design Loading Memory Usage: 6816 KB (Peak: 6816 KB)
+Design Loading CPU Usage: 0 ms
+Simulation completed
+Simulation Memory Usage: 7664 KB (Peak: 7664 KB)
+Simulation CPU Usage: 0 ms

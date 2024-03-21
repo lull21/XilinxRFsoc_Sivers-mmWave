@@ -110,7 +110,7 @@ module beam_scan(
             if (rst_n == 1'b0) begin
                 cnt_point_transed <= 32'd0;
                 tx_segment <= 6'd0;   tx_data <= 96'd0;
-                rx_segment <= 6'd0;   rx_data <= 96'd0;
+                rx_segment <= 6'd0;   rx_data = 96'd0;
                 send_data  <= 1'b0; 
                 pause_counter <= 32'd0;  pause_state <= 1'b0;
                 best_snr <= 16'd0;
@@ -124,20 +124,15 @@ module beam_scan(
             else begin
                 //接收
                 if (pause_state == 1'b1) begin //暂停发送，接收空隙
-                    if (pause_counter < PAUSE_TIME) begin
-                        pause_counter  <=   pause_counter + 32'd1;
-                    end
-                    else begin
-                        pause_state    <=   1'b0;
-                        pause_counter  <=   32'd0;
-                    end
-                    
+
 //                    if (bit_in_tvalid)begin
-                        rx_data[rx_segment*16+:16] = bit_in_tdata;
-                        data_rx  = rx_data[rx_segment*16+:16];
+//                        rx_data[rx_segment*16+:16] = bit_in_tdata;
+//                        data_rx  <= rx_data[rx_segment*16+:16];
 //                        data_rx  = bit_in_tdata;
-                        if (rx_segment < 8'd5) begin
+                        if (rx_segment < 8'd5 ) begin
                             rx_segment = rx_segment + 8'd1;
+                            rx_data[rx_segment*16+:16] = bit_in_tdata;
+                            data_rx  <= rx_data[rx_segment*16+:16];
                         end
                         else begin
                             rx_segment = 8'd0;
@@ -157,10 +152,20 @@ module beam_scan(
                             end
                         end
 //                    end
+                    if (pause_counter < PAUSE_TIME) begin
+                        pause_counter  =   pause_counter + 32'd1;
+                    end
+                    else begin
+                        pause_state    =   1'b0;
+                        pause_counter  =   32'd0;
+                        rx_data <= 96'd0;
+                        data_rx <= 16'd0;
+                    end
                 end
                 //发送
                 else begin
                     rx_data <= 96'd0;
+                    data_rx <= 16'd0;
                     if (scan_Enable && scan_Pulse  && beam_count == 0) begin //第一个波束信号发送
                         // Construct the data to be transmitted
                         send_data  <=  1'b1;
@@ -188,8 +193,10 @@ module beam_scan(
                             end
                             else begin
                                 tx_segment  = 6'd0; 
-                                beam_count  <= beam_count + 1'b1;
-                                pause_state <= 1'b1;
+                                beam_count  = beam_count + 1'b1;
+                                pause_state = 1'b1;
+                                rx_data[rx_segment*16+:16] = bit_in_tdata;
+                                data_rx  <= rx_data[rx_segment*16+:16];
                                 if (beam_count >= 63) begin
                                     beam_count <=  0;
                                     send_data  <=  1'b0;
@@ -231,6 +238,8 @@ module beam_scan(
                 if (bit_in_tvalid) begin
                     pause_state <=  1'b0;
                     send_data   <=  1'b0;
+                    rx_data[rx_segment*16+:16] = bit_in_tdata;
+                    data_rx  = rx_data[rx_segment*16+:16];
                     if (rx_segment < 8'd5) begin
     //                    rx_segment <= rx_segment + 8'd1;
                         rx_segment = rx_segment + 8'd1;
@@ -259,9 +268,13 @@ module beam_scan(
 //                        end
                     end
                end
-            else if(send_data)begin
-                pause_state <=  1'b1;
-                pause_counter <= pause_counter + 32'd1;
+               else begin
+                    rx_data = 0;
+                    data_rx  = 0;
+               end
+            if (send_data) begin//不要用<=
+                pause_state =  1'b1;
+                pause_counter = pause_counter + 32'd1;
             end
 //            if (pause_counter > 6) begin
 //                pause_counter = 32'd0;
@@ -291,15 +304,6 @@ module beam_scan(
                         end
                         else begin
                             tx_segment  <=  6'd0; 
-//                            tx_data     =  96'hFFFFFFFFFFFFFFFFFFFFFFFF;   
-//                            send_data  <=  1'b0;
-//                            beam_count  <= beam_count + 1'b1;
-//                            pause_state <= 1'b0;
-//                            if (beam_count >= 63) begin
-//                                beam_count <=  0;
-//                                send_data  <=  1'b0;
-//                                tx_data    <=  96'd0;    
-//                            end
                         end
                     end
                 end
@@ -337,6 +341,9 @@ module beam_scan(
         assign bit_in_tready  =  (pause_state == 1'b1) ? 1'b1 : 1'b0;
         assign tx_rx_sw = (pause_state == 1'b1) ? 1'b0 : 1'b1; // RX模式(TX_RX_SW=0)或TX模式(TX_RX_SW=1)
         assign isScanCompleted = (currentScanSlot == 64) ? 1'b1 : 1'b0;
+//        assign data_rx  = (pause_state == 1'b1) ? bit_in_tdata :16'd0;
+//        assign data_rx  = (pause_state == 1'b1) ? rx_data[rx_segment*16+:16] :16'd0;
+//        assign data_rx  = (pause_state == 1'b1) ? rx_data[rx_segment*16+:16] :16'd0;
     `endif
     `ifdef NODE_UE //用户端发送数据模块
     //补充用户端输出数据部分
