@@ -4,10 +4,4 @@ Running: D:/Vivado/Vivado/2018.3/bin/unwrapped/win64.o/xelab.exe -wto 32b426fd1b
 Using 2 slave threads.
 Starting static elaboration
 Completed static elaboration
-Starting simulation data flow analysis
-Completed simulation data flow analysis
-Time Resolution for simulation is 1ps
-Compiling module xil_defaultlib.beam_scan
-Compiling module xil_defaultlib.tb_beam_scan_bs
-Compiling module xil_defaultlib.glbl
-Built simulation snapshot tb_beam_scan_bs_behav
+INFO: [XSIM 43-4323] No Change in HDL. Linking previously generated obj files to create kernel
