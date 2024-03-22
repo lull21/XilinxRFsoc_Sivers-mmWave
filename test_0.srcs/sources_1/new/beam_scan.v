@@ -64,6 +64,13 @@ module beam_scan(
     output reg [7:0]  tx_segment,
     output reg [7:0]  rx_segment,
     
+    output reg [7:0] tx_cnt,
+    output reg [7:0] rx_cnt,
+    
+    output reg [31:0] counter = 0,
+    
+    output reg send_data,
+    
     output wire bf_rst,
     output wire bf_rtn,
     output wire bf_inc
@@ -81,7 +88,7 @@ module beam_scan(
     reg [95:0] rx_data; // 存储接收到的数据
 //    reg [7:0]  rx_segment = 0; // 存储接收数据的段号
     
-    reg send_data; // Flag to control data transmission
+//    reg send_data; // Flag to control data transmission
     
     reg [7:0]  best_bs_beam; // 存储最佳基站的波束
     reg [7:0]  best_user_beam;//// 存储最佳用户的波束
@@ -90,7 +97,10 @@ module beam_scan(
     integer i;
     
     reg [31:0] pause_counter = 0; // 新增的计数器
+//    reg [31:0] counter = 0;
 //    reg pause_state; // 新增的状态变量，1为暂停，0为发送
+//    reg [7:0] tx_cnt = 0;
+//    reg [7:0] rx_cnt = 0;
     
     `ifdef NODE_UE
         // 用户特定的逻辑
@@ -105,12 +115,12 @@ module beam_scan(
         reg [15:0] bs_snr [63:0]; // 存储每个发送波束的信噪比
     `endif
     
-    `ifdef NODE_BS  //基站端:准备发送数据\接收数据
+    `ifdef NODE_BS  //基站端:准备发送数据\接收数据  基站部分别再动
         always @(posedge clk or posedge scan_Pulse) begin
             if (rst_n == 1'b0) begin
                 cnt_point_transed <= 32'd0;
                 tx_segment <= 6'd0;   tx_data <= 96'd0;
-                rx_segment <= 6'd0;   rx_data = 96'd0;
+                rx_segment <= 6'd1;   rx_data = 96'd0;
                 send_data  <= 1'b0; 
                 pause_counter <= 32'd0;  pause_state <= 1'b0;
                 best_snr <= 16'd0;
@@ -124,7 +134,6 @@ module beam_scan(
             else begin
                 //接收
                 if (pause_state == 1'b1) begin //暂停发送，接收空隙
-
 //                    if (bit_in_tvalid)begin
 //                        rx_data[rx_segment*16+:16] = bit_in_tdata;
 //                        data_rx  <= rx_data[rx_segment*16+:16];
@@ -197,7 +206,7 @@ module beam_scan(
                                 pause_state = 1'b1;
                                 rx_data[rx_segment*16+:16] = bit_in_tdata;
                                 data_rx  <= rx_data[rx_segment*16+:16];
-                                if (beam_count >= 63) begin
+                                if (beam_count > 63) begin
                                     beam_count <=  0;
                                     send_data  <=  1'b0;
                                     tx_data    <=  96'd0;    
@@ -215,11 +224,20 @@ module beam_scan(
             end
         end
     `endif
+    
+    
+    
+    
+    
+    
+    
+    
+    
      `ifdef NODE_UE //用户端:准备发送数据\接收数据
 //  此部分用于:在每个时隙中，用户端会收到基站端发送的64个波束的不同数据，通过信噪比进行比较。
 //  首先，在每个时隙结束时选择具有最大信噪比的基站端发送的波束号。然后，在64个时隙结束后，
 //  比较每个时隙中选出的具有最大信噪比的基站端发送的波束号，选择其中最大的波束号，并确定其对应的用户接收波束信号，这就是最佳波束对。
-    // 在每个时隙结束时，更新每个波束的信噪比和选择最佳的波束
+//  在每个时隙结束时，更新每个波束的信噪比和选择最佳的波束
         always @(posedge clk or posedge scan_Pulse) begin
             if (rst_n == 1'b0) begin
                 cnt_point_transed <= 32'd0;
@@ -229,82 +247,51 @@ module beam_scan(
                 user_beam   <=  8'd0;
                 pause_counter  <=  32'd0; pause_state  <=  1'b0;
                 rx_counter <= 8'd0;
+                counter = 32'd0;
                 for (i = 0; i < 64; i = i + 1)
                     snr[i] <= 16'd0;
             end
-//            else if (bit_in_tvalid) begin
             else  begin
-                // 接收数据
-                if (bit_in_tvalid) begin
-                    pause_state <=  1'b0;
-                    send_data   <=  1'b0;
-                    rx_data[rx_segment*16+:16] = bit_in_tdata;
-                    data_rx  = rx_data[rx_segment*16+:16];
-                    if (rx_segment < 8'd5) begin
-    //                    rx_segment <= rx_segment + 8'd1;
-                        rx_segment = rx_segment + 8'd1;
-//                        pause_state =  1'b0;
-                    end
-                    else begin
-                        rx_segment  =  8'd0;// 接收完成，专为发送
-                        pause_counter = 32'd0;
-                        send_data   =  1'b1;
-//                        pause_state =  1'b1;// 新增的状态变量，基站：1为接收，0为发送，用户：1为发送，0为接收
-                        // 更新当前波束的信噪比
-                        snr[rx_data[39:32]] <= SNR;
-                        // 如果当前波束的信噪比比最佳波束的信噪比大，则更新最佳的波束和信噪比
-                        if (SNR > best_snr) begin
-                            best_bs_beam    <=  rx_data[39:32];//存储一个时隙内64个波束中信噪比最大的发送波束号
-                            best_user_beam  <=  user_beam;
-                            best_snr <= SNR;//存储一个时隙内64个波束中信噪比最大的信噪比
-                        end
-//                        if (pause_counter < PAUSE_TIME) begin //基站发送持续时间：进入发送状态（pause_state   ==  1'b1）时才开始计时
-//                               pause_counter <= pause_counter + 32'd1;
-//                            pause_counter = pause_counter + 32'd1;
-//                        end
-//                        else begin
-//                            pause_state   <=  1'b0;
-//                            pause_counter <=  32'd0;
-//                        end
-                    end
-               end
-               else begin
-                    rx_data = 0;
-                    data_rx  = 0;
-               end
-            if (send_data) begin//不要用<=
-                pause_state =  1'b1;
-                pause_counter = pause_counter + 32'd1;
-            end
-//            if (pause_counter > 6) begin
-//                pause_counter = 32'd0;
-//            end
-            //发送数据
-            if (pause_state == 1'b1) begin
-                // 在基站暂停发送时，将接收到的对应基站发送波束号的信噪比发送出去
-//                tx_data[95:0] =  96'h1234567890ABCDEF01020304; // TEST
-                tx_data[95:56] =  40'h1234567890; // Reserved
-//                tx_data[47:40] = snr[best_beam]; // SNR of the best beam
-                tx_data[55:40] =  snr[rx_data[39:32]]; // SNR of current BS's beam
-//                tx_data[39:32] = best_beam; // User's current beam
-                tx_data[39:32] =  user_beam; // User's current beam
-                tx_data[31:22] =  10'd96; // Data length
-                tx_data[21:16] =  6'b001001; // Data type
-                tx_data[15:8]  =  8'h01; // Destination address
-                tx_data[7:0]   =  8'h02; // Source address
-                send_data     <=  1'b1;
-            end
-//            if (cnt_point_transed < tx_frame_length && send_data ) begin
-            if (cnt_point_transed < tx_frame_length && pause_state ) begin
+                
+                //pause_state正常了
+                if ( pause_counter < 6 && bit_in_tvalid) begin
+                    pause_state    =   1'b0;
+                    tx_cnt = 0;
+                end
+                else if(counter >= 1)begin
+                    pause_state    =   1'b1;// 新增的状态变量，基站：1为接收，0为发送，用户：1为发送，0为接收  早了一个周期
+                    rx_cnt = 0;
+                end
+                
+                //发送数据
+               if (pause_state == 1'b1) begin
+                     tx_cnt = tx_cnt + 8'd1;
+                     rx_data <= 96'd0;
+                     data_rx <= 16'd0;
+                    // 在基站暂停发送时，将接收到的对应基站发送波束号的信噪比发送出去
+                    tx_data[95:56] =  40'h1234567890; // Reserved
+    //                tx_data[47:40] = snr[best_beam]; // SNR of the best beam
+                    tx_data[55:40] =  snr[rx_data[39:32]]; // SNR of current BS's beam
+    //                tx_data[39:32] = best_beam; // User's current beam
+                    tx_data[39:32] =  user_beam; // User's current beam
+                    tx_data[31:22] =  10'd96; // Data length
+                    tx_data[21:16] =  6'b001001; // Data type
+                    tx_data[15:8]  =  8'h01; // Destination address
+                    tx_data[7:0]   =  8'h02; // Source address
+                if (cnt_point_transed < tx_frame_length && pause_state ) begin
                     if (bit_out_tready == 1'b1) begin
                         cnt_point_transed <= cnt_point_transed + 32'd1;
-                        if (tx_segment < 6'd5 && pause_counter > 1) begin
-//                        if (tx_segment < 6'd5 ) begin
-                            tx_segment = tx_segment + 6'd1;
-                        end
+                        if (tx_segment < 6'd5 && (tx_cnt > 1 )) begin
+                            tx_segment  =  tx_segment + 6'd1;
+                        end   
+                        
                         else begin
-                            tx_segment  <=  6'd0; 
+                            tx_segment  <=  6'd0;
                         end
+                        if(tx_segment == 6'd5) begin
+                            pause_counter  =   32'd0;
+                        end
+                        
                     end
                 end
                 else if (cnt_point_transed < tx_interval) begin
@@ -313,9 +300,34 @@ module beam_scan(
                 else if (cnt_point_transed == tx_interval) begin
                     cnt_point_transed  <=  32'd0;
                 end
+            end//发送结束
+            
+            // 接收数据
+            else if (bit_in_tvalid) begin
+                    pause_counter  =   pause_counter + 32'd1;
+                    counter = 32'd1;
+                    rx_cnt = rx_cnt + 8'd1;
+                    rx_data[rx_segment*16+:16] = bit_in_tdata;
+                    data_rx    =  rx_data[rx_segment*16+:16];
+                    if (rx_segment < 8'd5 && (rx_cnt > 1 )) begin
+                        rx_segment = rx_segment + 8'd1;
+                    end
+                    else begin
+                        rx_segment  =  8'd0;// 接收完成，专为发送
+                    end
+                        if(rx_segment == 6'd5) begin
+                        // 更新当前波束的信噪比
+                        snr[rx_data[39:32]] <= SNR;
+                        // 如果当前波束的信噪比比最佳波束的信噪比大，则更新最佳的波束和信噪比
+                        if (SNR > best_snr) begin
+                            best_bs_beam    <=  rx_data[39:32];//存储一个时隙内64个波束中信噪比最大的发送波束号
+                            best_user_beam  <=  user_beam;
+                            best_snr <= SNR;//存储一个时隙内64个波束中信噪比最大的信噪比
+                        end
+                   end
+               end
             //用户端波束号在一个时隙内更新一次
                 if (scan_Pulse) begin
-//                    user_beam = user_beam + 8'd1;
                     if(rx_counter >= 1) begin //user_beam从0开始
                         user_beam = user_beam + 8'd1;
                     end
@@ -348,7 +360,7 @@ module beam_scan(
     `ifdef NODE_UE //用户端发送数据模块
     //补充用户端输出数据部分
 //        assign bit_out_tvalid =  (pause_state == 1'b1) ? bit_out_tready : ((cnt_point_transed < tx_frame_length && send_data) ? bit_out_tready : 1'b0);
-        assign bit_out_tvalid =  (pause_state == 1'b1) ? ((cnt_point_transed < tx_frame_length && send_data) ? bit_out_tready : 1'b0) : 1'b0;
+        assign bit_out_tvalid =  (pause_state == 1'b1) ? 1'b1 : 1'b0;
 //        assign bit_out_tdata  =  (pause_state == 1'b1) ? tx_data[tx_segment*16+:16] : ((pause_state == 1'b1) ? 16'd0 : tx_data[tx_segment*16+:16]); 
         assign bit_out_tdata  =  (pause_state == 1'b1) ? tx_data[tx_segment*16+:16] : 16'd0; 
         assign bit_out_tkeep  =   2'b11;

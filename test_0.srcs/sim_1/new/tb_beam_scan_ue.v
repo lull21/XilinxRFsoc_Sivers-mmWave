@@ -31,6 +31,7 @@ module tb_beam_scan_ue;
     
     wire [15:0] bit_out_tdata;
     wire [7:0] tx_segment;
+    wire send_data;
     wire bit_out_tvalid;
     reg bit_out_tready;
     wire [1:0] bit_out_tkeep;
@@ -42,6 +43,11 @@ module tb_beam_scan_ue;
     wire [7:0] out_user_beam;// 存储每个用户的波束号
     wire [15:0] out_user_snr;
     wire pause_state;
+    
+    wire [31:0] counter;
+    
+    wire [7:0] tx_cnt;
+    wire [7:0] rx_cnt;
     
     reg [15:0] bit_in_tdata;
     reg bit_in_tvalid;
@@ -67,8 +73,12 @@ module tb_beam_scan_ue;
         .bit_out_tdata(bit_out_tdata), .bit_out_tvalid(bit_out_tvalid), .bit_out_tready(bit_out_tready),
         .bit_out_tkeep(bit_out_tkeep), .bit_out_tstrb(bit_out_tstrb), .bit_out_tlast(bit_out_tlast),
         .data_rx(data_rx),
+        .send_data(send_data),
+        .tx_cnt(tx_cnt),
+        .rx_cnt(rx_cnt),
         .out_user_beam(out_user_beam),// 存储每个用户的波束号
         .out_user_snr(out_user_snr),
+        .counter(counter),
         .pause_state(pause_state), // 新增的状态变量，1为暂停，0为发送
         .rx_segment(rx_segment),
         .tx_segment(tx_segment),
@@ -105,6 +115,7 @@ module tb_beam_scan_ue;
             // Trigger the scan pulse
 //            #190 scan_Pulse = 1;
             scan_Pulse = 1;
+//            bit_in_tdata = 2; bit_in_tvalid = 1; bit_in_tkeep = 2'b11; bit_in_tstrb = 2'b00; bit_in_tlast = 0;
             #20
             scan_Pulse = 0;
             // Send and receive data 64 times within one slot
@@ -115,7 +126,6 @@ module tb_beam_scan_ue;
                     #20;
                 end                                         
                 bit_in_tdata = 16'hABCD;
-    
                 bit_in_tvalid = 0;
                 #120;                
 //              #40;
