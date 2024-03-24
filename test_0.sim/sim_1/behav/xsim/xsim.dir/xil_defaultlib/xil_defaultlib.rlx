@@ -2,7 +2,7 @@
 2018.3
 Dec  7 2018
 00:33:28
-D:/Vivado/2.28/MAC/header.vh,1711071604,verilog,,,,,,,,,,,,
+D:/Vivado/2.28/MAC/header.vh,1711255202,verilog,,,,,,,,,,,,
 D:/Vivado/2.28/test_0/test_0.sim/sim_1/behav/xsim/glbl.v,1544155481,verilog,,,,glbl,,,,,,,,
 D:/Vivado/2.28/test_0/test_0.srcs/sim_1/new/tb_baem_scan_bs.v,1711007639,verilog,,,,tb_beam_scan_bs,,,../../../../../MAC,,,,,
 D:/Vivado/2.28/test_0/test_0.srcs/sim_1/new/tb_beam_ctrl.v,1709777318,verilog,,,,tb_beam_ctrl,,,,,,,,
@@ -10,5 +10,5 @@ D:/Vivado/2.28/test_0/test_0.srcs/sim_1/new/tb_beam_scan.v,1710145757,verilog,,,
 D:/Vivado/2.28/test_0/test_0.srcs/sim_1/new/tb_beam_scan_ue.v,1711097079,verilog,,,,tb_beam_scan_ue,,,../../../../../MAC,,,,,
 D:/Vivado/2.28/test_0/test_0.srcs/sim_1/new/tb_tx_ofdm_bit_axis_rom.v,1709775733,verilog,,,,tb_tx_ofdm_bit_axis_rom,,,,,,,,
 D:/Vivado/2.28/test_0/test_0.srcs/sources_1/new/beam_ctrl.v,1709777466,verilog,,D:/Vivado/2.28/test_0/test_0.srcs/sim_1/new/tb_beam_scan.v,,beam_ctrl,,,,,,,,
-D:/Vivado/2.28/test_0/test_0.srcs/sources_1/new/beam_scan.v,1711098931,verilog,,D:/Vivado/2.28/test_0/test_0.srcs/sim_1/new/tb_beam_scan_ue.v,D:/Vivado/2.28/MAC/header.vh,beam_scan,,,../../../../../MAC,,,,,
+D:/Vivado/2.28/test_0/test_0.srcs/sources_1/new/beam_scan.v,1711260174,verilog,,D:/Vivado/2.28/test_0/test_0.srcs/sim_1/new/tb_baem_scan_bs.v,D:/Vivado/2.28/MAC/header.vh,beam_scan,,,../../../../../MAC,,,,,
 D:/Vivado/2.28/test_0/test_0.srcs/sources_1/new/tx_ofdm_bit_axis_rom.v,1709775624,verilog,,D:/Vivado/2.28/test_0/test_0.srcs/sim_1/new/tb_tx_ofdm_bit_axis_rom.v,,tx_ofdm_bit_axis_rom,,,,,,,,

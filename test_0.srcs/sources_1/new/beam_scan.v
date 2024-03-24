@@ -53,7 +53,7 @@ module beam_scan(
     output wire synNode_valid,
     output wire [7:0] synNode,
     output wire isScanCompleted,
-    output wire tx_rx_sw, //RX模式(TX_RX_SW=0)或TX模式(TX_RX_SW=1)
+    
     input  wire SNR, //输入信号信噪比
     
     output reg [7:0]  out_user_beam,// 存储每个用户的波束号
@@ -71,9 +71,11 @@ module beam_scan(
     
     output reg send_data,
     
-    output wire bf_rst,
-    output wire bf_rtn,
-    output wire bf_inc
+    output wire tx_rx_sw, //RX模式(TX_RX_SW=0)或TX模式(TX_RX_SW=1)
+    
+    output wire bf_rst, // BF_RST将索引重置为预编程的默认值=0
+    output wire bf_rtn, // BF_INC指数加1
+    output wire bf_inc  // BF_RTN将索引临时设置为预编程的默认值
     );
     parameter [31:0] PAUSE_TIME = 5;
     
@@ -120,7 +122,7 @@ module beam_scan(
             if (rst_n == 1'b0) begin
                 cnt_point_transed <= 32'd0;
                 tx_segment <= 6'd0;   tx_data <= 96'd0;
-                rx_segment <= 6'd1;   rx_data = 96'd0;
+                rx_segment <= 6'd0;   rx_data = 96'd0;
                 send_data  <= 1'b0; 
                 pause_counter <= 32'd0;  pause_state <= 1'b0;
                 best_snr <= 16'd0;
@@ -135,13 +137,10 @@ module beam_scan(
                 //接收
                 if (pause_state == 1'b1) begin //暂停发送，接收空隙
 //                    if (bit_in_tvalid)begin
-//                        rx_data[rx_segment*16+:16] = bit_in_tdata;
-//                        data_rx  <= rx_data[rx_segment*16+:16];
-//                        data_rx  = bit_in_tdata;
+                        rx_data[rx_segment*16+:16] = bit_in_tdata;
+                        data_rx  <= rx_data[rx_segment*16+:16];
                         if (rx_segment < 8'd5 ) begin
                             rx_segment = rx_segment + 8'd1;
-                            rx_data[rx_segment*16+:16] = bit_in_tdata;
-                            data_rx  <= rx_data[rx_segment*16+:16];
                         end
                         else begin
                             rx_segment = 8'd0;
@@ -225,10 +224,7 @@ module beam_scan(
         end
     `endif
     
-    
-    
-    
-    
+       
     
     
     
