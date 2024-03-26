@@ -72,12 +72,19 @@ module beam_scan(
     output reg send_data,
     
     output wire tx_rx_sw, //RX模式(TX_RX_SW=0)或TX模式(TX_RX_SW=1)
+    output reg beam_state,//1为调整 
+    output reg rx_state, //1为接收
+    output reg tx_state, //1为发送
     
-    output wire bf_rst, // BF_RST将索引重置为预编程的默认值=0
-    output wire bf_rtn, // BF_INC指数加1
-    output wire bf_inc  // BF_RTN将索引临时设置为预编程的默认值
+    output reg bf_rst, // BF_RST将索引重置为预编程的默认值=0
+    output reg bf_rtn, // BF_INC指数加1
+    output reg bf_inc  // BF_RTN将索引临时设置为预编程的默认值
     );
     parameter [31:0] PAUSE_TIME = 5;
+    parameter [31:0] BEAM_TIME = 10;
+    
+    // 假设有个初始状态标志，表示是否为一轮新的发送的开始
+    reg init_state = 1'b1; 
     
     reg [7:0] beam_index [63:0]; //// 这有问题 Array to store the beam numbers,前面是每个寄存器大小，后面是有多少寄存器
     reg [7:0] beam_count = 0; // Counter for the beam numbers
@@ -115,6 +122,7 @@ module beam_scan(
         // 基站接收数据的逻辑       
         reg [7:0] user_beam [63:0]; // 存储每个用户的波束号
         reg [15:0] bs_snr [63:0]; // 存储每个发送波束的信噪比
+//        reg beam_state;//波束调整周期 在一次发送接收完成后预留时间进行波束调整 为1时调整  为0时不调整
     `endif
     
     `ifdef NODE_BS  //基站端:准备发送数据\接收数据  基站部分别再动
@@ -126,6 +134,12 @@ module beam_scan(
                 send_data  <= 1'b0; 
                 pause_counter <= 32'd0;  pause_state <= 1'b0;
                 best_snr <= 16'd0;
+                beam_state <= 1'b0;
+                rx_state <= 1'b0;
+                tx_state <= 1'b1;
+                bf_inc <= 1'b0;
+                bf_rtn <= 1'b0;
+                bf_rst <= 1'b1;
                 for (i = 0; i < 64; i = i + 1)
                     user_beam[i] <= 8'd0;
                 for (i = 0; i < 64; i = i + 1)
@@ -135,7 +149,8 @@ module beam_scan(
             end
             else begin
                 //接收
-                if (pause_state == 1'b1) begin //暂停发送，接收空隙
+//                if (pause_state == 1'b1) begin //暂停发送，接收空隙
+                if (rx_state == 1'b1) begin //暂停发送，接收空隙
 //                    if (bit_in_tvalid)begin
                         rx_data[rx_segment*16+:16] = bit_in_tdata;
                         data_rx  <= rx_data[rx_segment*16+:16];
@@ -164,14 +179,50 @@ module beam_scan(
                         pause_counter  =   pause_counter + 32'd1;
                     end
                     else begin
-                        pause_state    =   1'b0;
-                        pause_counter  =   32'd0;
+//                        pause_state    =   1'b0;
+//                        pause_counter  =   32'd0;
+                        pause_counter  <=   pause_counter + 32'd1;
+                        beam_state     <=   1'b1; //更改 本状态和下一个状态
+                        rx_state     <=   1'b0;
+                        tx_state    <=   1'b0;
                         rx_data <= 96'd0;
                         data_rx <= 16'd0;
                     end
                 end
+                
+                //波束调整周期
+                else if(beam_state == 1'b1)begin
+//                else if(beam_state == 1'b1)begin
+                
+                    if(pause_counter < BEAM_TIME)begin //  <10
+                        pause_counter  <=   pause_counter + 32'd1;
+                        if(beam_count > 0 && beam_count <= 63)begin //inc自增
+                            bf_inc <= 1'b1;
+                        end
+                        else if( beam_count == 0)begin
+//                        else if(beam_count == 63 || beam_count == 0)begin
+                            bf_rst <= 1'b1;
+                        end
+                        
+                    end
+                    else begin //结束波束调整阶段
+//                        pause_state   <=   1'b0;
+                        pause_counter <= 32'd0;
+                        beam_state    <=   1'b0;
+                        tx_state    <=   1'b1;
+                        rx_state     <=   1'b0;
+                        bf_inc <= 1'b0;
+                        bf_rst <= 1'b0;
+                        bf_rtn <= 1'b0;
+                    end
+                    
+                end
+                
                 //发送
-                else begin
+                else if(tx_state == 1 )begin
+//                if(tx_state == 1 || (beam_state == 0 && rx_state == 0) )begin
+//                if(pause_state == 0 && beam_state == 0)begin
+//                else if(pause_state == 0 && beam_state == 0)begin
                     rx_data <= 96'd0;
                     data_rx <= 16'd0;
                     if (scan_Enable && scan_Pulse  && beam_count == 0) begin //第一个波束信号发送
@@ -202,7 +253,10 @@ module beam_scan(
                             else begin
                                 tx_segment  = 6'd0; 
                                 beam_count  = beam_count + 1'b1;
-                                pause_state = 1'b1;
+//                                pause_state = 1'b1;
+                                tx_state = 1'b0;
+                                rx_state = 1'b1;
+                                beam_state = 1'b0;
                                 rx_data[rx_segment*16+:16] = bit_in_tdata;
                                 data_rx  <= rx_data[rx_segment*16+:16];
                                 if (beam_count > 63) begin
@@ -223,10 +277,6 @@ module beam_scan(
             end
         end
     `endif
-    
-       
-    
-    
     
     
      `ifdef NODE_UE //用户端:准备发送数据\接收数据
@@ -342,16 +392,16 @@ module beam_scan(
     
     `ifdef NODE_BS //基站发送数据模块
     //    assign bit_out_tvalid = (cnt_point_transed < tx_frame_length && send_data) ? bit_out_tready : 1'b0;
-        assign bit_out_tvalid =  (pause_state == 1'b1) ? 1'b0 : ((cnt_point_transed < tx_frame_length && send_data) ? bit_out_tready : 1'b0);
-        assign bit_out_tdata  =  (pause_state == 1'b1) ? 16'd0 : tx_data[tx_segment*16+:16];
+        assign bit_out_tvalid =  (tx_state == 1'b0) ? 1'b0 : ((cnt_point_transed < tx_frame_length && send_data) ? bit_out_tready : 1'b0);
+        assign bit_out_tdata  =  (tx_state == 1'b0) ? 16'd0 : tx_data[tx_segment*16+:16];
         assign bit_out_tkeep  =   2'b11;
         assign bit_out_tstrb  =   2'b00;
-        assign bit_in_tready  =  (pause_state == 1'b1) ? 1'b1 : 1'b0;
-        assign tx_rx_sw = (pause_state == 1'b1) ? 1'b0 : 1'b1; // RX模式(TX_RX_SW=0)或TX模式(TX_RX_SW=1)
+        assign bit_in_tready  =  (rx_state == 1'b1) ? 1'b1 : 1'b0;
+        assign tx_rx_sw = (rx_state == 1'b1) ? 1'b0 :1'b1; // RX模式(TX_RX_SW=0)或TX模式(TX_RX_SW=1)
         assign isScanCompleted = (currentScanSlot == 64) ? 1'b1 : 1'b0;
-//        assign data_rx  = (pause_state == 1'b1) ? bit_in_tdata :16'd0;
-//        assign data_rx  = (pause_state == 1'b1) ? rx_data[rx_segment*16+:16] :16'd0;
-//        assign data_rx  = (pause_state == 1'b1) ? rx_data[rx_segment*16+:16] :16'd0;
+//        assign bf_rst =  // BF_RST将索引重置为预编程的默认值=0
+//        assign bf_rtn, // BF_INC指数加1
+//        assign bf_inc
     `endif
     `ifdef NODE_UE //用户端发送数据模块
     //补充用户端输出数据部分

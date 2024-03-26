@@ -17,6 +17,12 @@ module tb_beam_scan_bs;
     wire [1:0] bit_out_tkeep;
     wire [1:0] bit_out_tstrb;
     wire bit_out_tlast;
+    wire tx_state;
+    wire rx_state;
+    wire beam_state;
+    wire bf_rst;// BF_RST将索引重置为预编程的默认值=0
+    wire bf_rtn; // BF_INC指数加1
+    wire bf_inc;
     
     //测试接口
     wire [15:0]data_rx;
@@ -49,6 +55,12 @@ module tb_beam_scan_bs;
         .bit_out_tdata(bit_out_tdata), .bit_out_tvalid(bit_out_tvalid), .bit_out_tready(bit_out_tready),
         .bit_out_tkeep(bit_out_tkeep), .bit_out_tstrb(bit_out_tstrb), .bit_out_tlast(bit_out_tlast),
         .data_rx(data_rx),
+        .tx_state(tx_state),
+        .rx_state(rx_state),
+        .beam_state(beam_state),
+        .bf_rst(bf_rst), // BF_RST将索引重置为预编程的默认值=0
+        .bf_rtn(bf_rtn), // BF_INC指数加1
+        .bf_inc(bf_inc),
         .out_user_beam(out_user_beam),// 存储每个用户的波束号
         .out_user_snr(out_user_snr),
         .pause_state(pause_state), // 新增的状态变量，1为暂停，0为发送
@@ -98,7 +110,8 @@ module tb_beam_scan_bs;
                 end
                 bit_in_tdata = 16'hABCD;            
                 bit_in_tvalid = 0;                             
-                #20;
+                #120;
+//                #20;
             end
 //            #100; // Wait for the next slot
         end
