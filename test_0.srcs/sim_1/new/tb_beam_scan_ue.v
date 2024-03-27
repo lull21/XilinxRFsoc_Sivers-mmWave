@@ -31,15 +31,22 @@ module tb_beam_scan_ue;
     
     wire [15:0] bit_out_tdata;
     wire [7:0] tx_segment;
-    wire send_data;
+//    wire send_data;
     wire bit_out_tvalid;
     reg bit_out_tready;
     wire [1:0] bit_out_tkeep;
     wire [1:0] bit_out_tstrb;
     wire bit_out_tlast;
     
+    wire rx_state;
+    wire tx_state;
+    wire beam_state;
+    wire bf_rst;// BF_RST将索引重置为预编程的默认值=0
+    wire bf_inc;
+    wire bf_rtn; // BF_INC指数加1
+    
     //测试接口
-    wire [15:0]data_rx;
+    
     wire [7:0] out_user_beam;// 存储每个用户的波束号
     wire [15:0] out_user_snr;
     wire pause_state;
@@ -47,8 +54,10 @@ module tb_beam_scan_ue;
     wire [31:0] counter;
     
     wire [7:0] tx_cnt;
+    wire [15:0]data_rx;
     wire [7:0] rx_cnt;
     
+    wire [7:0] rx_segment;
     reg [15:0] bit_in_tdata;
     reg bit_in_tvalid;
     wire bit_in_tready;
@@ -65,17 +74,21 @@ module tb_beam_scan_ue;
     
     reg SNR;
     
-    wire [7:0] rx_segment;
-
     beam_scan uut (
         .clk(clk), .rst_n(rst_n), .tx_interval(tx_interval), .tx_frame_length(tx_frame_length),
         .scan_Enable(scan_Enable), .scan_Pulse(scan_Pulse), .currentScanSlot(currentScanSlot),
         .bit_out_tdata(bit_out_tdata), .bit_out_tvalid(bit_out_tvalid), .bit_out_tready(bit_out_tready),
         .bit_out_tkeep(bit_out_tkeep), .bit_out_tstrb(bit_out_tstrb), .bit_out_tlast(bit_out_tlast),
         .data_rx(data_rx),
-        .send_data(send_data),
+//        .send_data(send_data),
         .tx_cnt(tx_cnt),
         .rx_cnt(rx_cnt),
+        .tx_state(tx_state),
+        .rx_state(rx_state),
+        .beam_state(beam_state),
+        .bf_rst(bf_rst), // BF_RST将索引重置为预编程的默认值=0
+        .bf_rtn(bf_rtn), // BF_INC指数加1
+        .bf_inc(bf_inc),
         .out_user_beam(out_user_beam),// 存储每个用户的波束号
         .out_user_snr(out_user_snr),
         .counter(counter),
@@ -120,7 +133,7 @@ module tb_beam_scan_ue;
             scan_Pulse = 0;
             // Send and receive data 64 times within one slot
             for (i = 0; i < 64; i = i + 1) begin
-//                #100; // Wait for the data to be transmitted
+                #100; // Wait for the data to be transmitted
                 for(j = 2; j < 8; j = j + 1)begin
                     bit_in_tdata = j; bit_in_tvalid = 1; bit_in_tkeep = 2'b11; bit_in_tstrb = 2'b00; bit_in_tlast = 0;
                     #20;

@@ -2,13 +2,11 @@
 # Webtalk v2018.3 (64-bit)
 # SW Build 2405991 on Thu Dec  6 23:38:27 MST 2018
 # IP Build 2404404 on Fri Dec  7 01:43:56 MST 2018
-# Start of session at: Wed Mar 27 22:40:52 2024
-# Process ID: 20476
+# Start of session at: Wed Mar 27 09:51:33 2024
+# Process ID: 13232
 # Current directory: D:/Vivado/2.28/test_1/XilinxRFsoc_Sivers-mmWave/test_0.sim/sim_1/behav/xsim
 # Command line: wbtcv.exe -mode batch -source D:/Vivado/2.28/test_1/XilinxRFsoc_Sivers-mmWave/test_0.sim/sim_1/behav/xsim/xsim.dir/tb_beam_scan_bs_behav/webtalk/xsim_webtalk.tcl -notrace
 # Log file: D:/Vivado/2.28/test_1/XilinxRFsoc_Sivers-mmWave/test_0.sim/sim_1/behav/xsim/webtalk.log
 # Journal file: D:/Vivado/2.28/test_1/XilinxRFsoc_Sivers-mmWave/test_0.sim/sim_1/behav/xsim\webtalk.jou
 #-----------------------------------------------------------
 source D:/Vivado/2.28/test_1/XilinxRFsoc_Sivers-mmWave/test_0.sim/sim_1/behav/xsim/xsim.dir/tb_beam_scan_bs_behav/webtalk/xsim_webtalk.tcl -notrace
-webtalk_transmit: Time (s): cpu = 00:00:00 ; elapsed = 00:00:05 . Memory (MB): peak = 63.684 ; gain = 0.000
-INFO: [Common 17-206] Exiting Webtalk at Wed Mar 27 22:40:57 2024...

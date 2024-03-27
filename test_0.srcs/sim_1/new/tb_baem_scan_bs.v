@@ -21,8 +21,9 @@ module tb_beam_scan_bs;
     wire rx_state;
     wire beam_state;
     wire bf_rst;// BF_RST将索引重置为预编程的默认值=0
-    wire bf_rtn; // BF_INC指数加1
     wire bf_inc;
+    wire bf_rtn; // BF_INC指数加1
+    
     
     //测试接口
     wire [15:0]data_rx;
