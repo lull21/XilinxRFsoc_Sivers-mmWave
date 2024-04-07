@@ -23,8 +23,8 @@ module beam_scan_v2(
     input wire clk,
     input wire rst_n,
         
-    input wire  [31:0] tx_interval,
-    input wire  [31:0] tx_frame_length,
+    input wire  [15:0] tx_interval,
+    input wire  [15:0] tx_frame_length,
     
     input wire scan_Enable, // 标志当前为扫描调度阶段
     input wire scan_Pulse,  // 触发扫描调度过程，在每个扫描时隙起始时刻给出
@@ -68,10 +68,10 @@ module beam_scan_v2(
     output reg [15:0] tx_cnt,
     output reg [15:0] rx_cnt,
     
-    output reg [31:0] cnt_tlast,
-    output reg [31:0] cnt_point_transed,
+    output reg [15:0] cnt_tlast,
+    output reg [15:0] cnt_point_transed,
     
-//    output reg [31:0] counter = 0,
+    output wire [7:0] beam_count_out ,
     
 //    output reg send_data,
     output reg [31:0] pause_counter,
@@ -146,7 +146,6 @@ module beam_scan_v2(
             if (rst_n == 1'b0) begin
                 cnt_point_transed <= 32'd0;
                 cnt_tlast         <= 32'd0;
-                
                 tx_segment <= 16'd0;   tx_data <= 0;
                 rx_segment <= 16'd0;   rx_data <= 0;
                 
@@ -292,7 +291,7 @@ module beam_scan_v2(
                                 if (beam_count > 63) begin
                                     beam_count <=  0;
                                     send_data  <=  1'b0;
-                                    tx_data    <=  96'd0;    
+                                    tx_data    <=  96'd0; 
                                 end
                             end
                         end
@@ -319,6 +318,7 @@ module beam_scan_v2(
         assign bit_in_tready   =   1'b1;
         assign tx_rx_sw = (rx_state == 1'b1) ? 1'b0 :1'b1; // RX模式(TX_RX_SW=0)或TX模式(TX_RX_SW=1)
         assign isScanCompleted = (currentScanSlot == 64) ? 1'b1 : 1'b0;
+        assign  beam_count_out =  beam_count;
     `endif
  
     // 输出为TX_MODE（BS）:下游同步节点数（8bit）、下游节点ID_1（8bit）、所使用的发送波束（8bit）、下游节点ID_2（8bit）、所使用的发送波束（8bit）；
@@ -331,35 +331,35 @@ module beam_scan_v2(
     always @(posedge clk or negedge rst_n) //4.1 20:23 删除cnt相关代码
     begin
         if (rst_n == 1'b0) begin
-            cnt_tlast <= 32'd0;
+            cnt_tlast <= 16'd0;
             bit_out_tlast <= 1'b0;
         end
         else begin
             if (cnt_point_transed < tx_frame_length && send_data ) begin
                 if (bit_out_tready == 1'b1) begin
-                cnt_point_transed <= cnt_point_transed + 32'd1;
-                    if (cnt_tlast == (tx_frame_length - 32'd2)) begin
-                        cnt_tlast <= cnt_tlast + 32'd1;
+                cnt_point_transed <= cnt_point_transed + 16'd1;
+                    if (cnt_tlast == (tx_frame_length - 16'd2)) begin
+                        cnt_tlast <= cnt_tlast + 16'd1;
                         bit_out_tlast <= 1'b1; //表示一帧结束
                     end
-                    else if (cnt_tlast == (tx_frame_length - 32'd1)) begin
-                        cnt_tlast <= 32'd0;
+                    else if (cnt_tlast == (tx_frame_length - 16'd1)) begin
+                        cnt_tlast <= 16'd0;
                         bit_out_tlast <= 1'b0;
                     end
                     else begin
-                        cnt_tlast <= cnt_tlast + 32'd1;
+                        cnt_tlast <= cnt_tlast + 16'd1;
                         bit_out_tlast <= 1'b0;
                     end
                 end
             end
             else if (cnt_point_transed < tx_interval && init_state) begin
-                cnt_point_transed  <=  cnt_point_transed + 32'd1;
-                cnt_tlast <= 32'd0;
+                cnt_point_transed  <=  cnt_point_transed + 16'd1;
+                cnt_tlast <= 16'd0;
                 bit_out_tlast <= 1'b0;
             end
             else if (cnt_point_transed == tx_interval) begin  
-                cnt_point_transed  <= 32'd0;          
-                cnt_tlast <= 32'd0;
+                cnt_point_transed  <= 16'd0;          
+                cnt_tlast <= 16'd0;
                 bit_out_tlast <= 1'b0;
             end
         end
