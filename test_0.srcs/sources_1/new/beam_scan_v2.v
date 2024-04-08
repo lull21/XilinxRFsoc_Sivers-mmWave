@@ -65,6 +65,8 @@ module beam_scan_v2(
     output reg [15:0]  tx_segment,
     output reg [15:0]  rx_segment,
     
+    output reg init_state,  // UE 专用
+    
     output reg [15:0] tx_cnt,
     output reg [15:0] rx_cnt,
     
@@ -72,6 +74,7 @@ module beam_scan_v2(
     output reg [15:0] cnt_point_transed,
     
     output wire [7:0] beam_count_out ,
+    output reg [31:0] counter, //UE专用
     
 //    output reg send_data,
     output reg [31:0] pause_counter,
@@ -81,7 +84,7 @@ module beam_scan_v2(
     output reg rx_state, //1为接收
     output reg tx_state, //1为发送
     
-    output reg bf_rst, // BF_RST将索引重置为预编程的默认值=0  bs-> reg  ue->wire
+    output wire bf_rst, // BF_RST将索引重置为预编程的默认值=0  bs-> reg  ue->wire
     output reg bf_rtn, // BF_INC指数加1
     output reg bf_inc  // BF_RTN将索引临时设置为预编程的默认值
     
@@ -96,9 +99,9 @@ module beam_scan_v2(
 //    reg [15:0] out_user_snr;
     
     // 假设有个初始状态标志，表示是否为一轮新的发送的开始
-    reg init_state = 1'b1; 
+//    reg init_state = 1'b0;  // BS 专用
     
-    reg [31:0] counter = 0;
+//    reg [31:0] counter = 0;  // BS 专用
     
     reg [7:0] beam_index [63:0]; //// 这有问题 Array to store the beam numbers,前面是每个寄存器大小，后面是有多少寄存器
     reg [7:0] beam_count = 0; // Counter for the beam numbers
@@ -133,7 +136,13 @@ module beam_scan_v2(
 //    reg pause_state; // 新增的状态变量，1为暂停，0为发送
 //    reg [7:0] tx_cnt = 0;
 //    reg [7:0] rx_cnt = 0;
-    
+    `ifdef NODE_UE
+        // 用户特定的逻辑
+        reg [15:0] snr [63:0]; // 存储每个波束的信噪比
+        reg [7:0]  user_beam ; // 存储每个用户的波束号
+        reg [7:0]  user_counter;
+        reg [7:0]  rx_counter;
+    `endif
     `ifdef NODE_BS
         // 基站接收数据的逻辑       
         reg [7:0] user_beam [63:0]; // 存储每个用户的波束号
@@ -307,6 +316,208 @@ module beam_scan_v2(
         end
     `endif
     
+     `ifdef NODE_UE //用户端:准备发送数据\接收数据
+//  此部分用于:在每个时隙中，用户端会收到基站端发送的64个波束的不同数据，通过信噪比进行比较。
+//  首先，在每个时隙结束时选择具有最大信噪比的基站端发送的波束号。然后，在64个时隙结束后，
+//  比较每个时隙中选出的具有最大信噪比的基站端发送的波束号，选择其中最大的波束号，并确定其对应的用户接收波束信号，这就是最佳波束对。
+//  在每个时隙结束时，更新每个波束的信噪比和选择最佳的波束
+        always @(posedge clk or posedge scan_Pulse) begin
+            if (rst_n == 1'b0) begin
+
+                best_bs_beam <= 8'd0; best_user_beam  <=  8'd0; best_snr  <=  16'd0;
+                
+                tx_segment  <=  16'd0; tx_data  <=  0;
+                rx_segment  <=  16'd0; rx_data  <=  0;
+                user_beam   <=  8'd0;
+                
+                pause_counter  <=  32'd0; pause_state  <=  1'b0;
+                rx_counter <= 8'd0;
+                counter = 32'd0;
+                beam_state <= 1'b0;
+                rx_state <= 1'b1;
+                tx_state <= 1'b0;
+                bf_inc <= 1'b0;
+                bf_rtn <= 1'b0;
+//                bf_rst <= 1'b1;
+                rx_cnt    <=   1'b0;
+                tx_cnt    <=   1'b0;
+                for (i = 0; i < 64; i = i + 1)
+                    snr[i] <= 16'd0;
+            end
+            else  begin
+ 
+                if(rx_segment == 16'd4799)begin
+                    counter <= counter + 1'b1;
+                    rx_data <= 0;
+                    data_rx <= 16'd0;
+                    rx_state <= 1'b0;
+                    tx_state <= 1'b1;
+                    beam_state <= 1'b0;
+//                    rx_segment  =  16'd0;
+//                    tx_segment  =  16'd0;
+//                    rx_cnt = 1'b0;
+//                    tx_cnt = 1'b0;
+                end
+                
+                //发送数据
+               if (tx_state == 1'b1) begin
+                     rx_segment  =  16'd0;
+                     rx_cnt = 1'b0;
+                     tx_cnt = tx_cnt + 8'd1;
+                     tx_data [76799:96] <= 76704'hFEDCFEDC;
+//                     rx_data <= 96'd0;
+//                     data_rx <= 16'd0;
+                    // 在基站暂停发送时，将接收到的对应基站发送波束号的信噪比发送出去
+                    tx_data[95:56] =  40'h1234567890; // Reserved
+    //                tx_data[47:40] = snr[best_beam]; // SNR of the best beam
+                    tx_data[55:40] =  snr[rx_data[39:32]]; // SNR of current BS's beam
+    //                tx_data[39:32] = best_beam; // User's current beam
+                    tx_data[39:32] =  user_beam; // User's current beam
+                    tx_data[31:22] =  10'd96; // Data length
+                    tx_data[21:16] =  6'b001001; // Data type
+                    tx_data[15:8]  =  8'h01; // Destination address
+                    tx_data[7:0]   =  8'h02; // Source address
+
+//                    if (tx_state ) begin // //4.1 20:23 删除cnt相关代码
+//                    if (cnt_point_transed < tx_frame_length && tx_state ) begin // 4.1 15：00之前用的
+    //                if (cnt_point_transed < tx_frame_length && pause_state ) begin
+                        if (bit_out_tready == 1'b1) begin
+//                            cnt_point_transed <= cnt_point_transed + 32'd1; //4.1 20:23 删除cnt相关代码
+                            if (tx_segment < 16'd4799 ) begin
+    //                        if (tx_segment < 6'd5 && (tx_cnt > 1 )) begin
+                                tx_segment  =  tx_segment + 16'd1;
+                            end   
+                            
+    //                        else begin
+    //                            tx_segment  <=  6'd0;
+    //                        end
+                            if (pause_counter < PAUSE_TIME) begin
+                                pause_counter  =   pause_counter + 32'd1;
+                            end
+                            else begin
+                                pause_counter  <=   pause_counter + 32'd1;
+                                beam_state     <=   1'b1; //更改 本状态和下一个状态
+                                rx_state     <=   1'b0;
+                                tx_state    <=   1'b0;
+                                rx_data <= 96'hEFEF;
+                                data_rx <= 16'hCDCD;                    
+                            end
+                        end
+//                    end
+//                    else if (cnt_point_transed < tx_interval) begin  //4.1 20:23 删除cnt相关代码
+//                        cnt_point_transed  <=  cnt_point_transed + 32'd1;
+//                    end
+//                    else if (cnt_point_transed == tx_interval) begin
+//                        cnt_point_transed  <=  32'd0;
+//                    end
+            end//发送结束
+            
+            //波束调整周期
+            else if(beam_state == 1'b1)begin
+//                else if(beam_state == 1'b1)begin
+            
+                if(pause_counter < BEAM_TIME)begin //  <10
+                    pause_counter  <=   pause_counter + 32'd1;
+                    if(counter > 0 && counter < 64)begin //inc自增
+//                    if(user_beam >= 0 && user_beam <= 63)begin //inc自增
+                        bf_inc <= 1'b1;  // 一直不显示为1
+                    end
+//                    else if( user_beam == 0 && counter == 0)begin
+////                        else if(beam_count == 63 || beam_count == 0)begin
+//                        bf_rst <= 1'b1;
+//                    end
+                end
+                else begin //结束波束调整阶段
+                    pause_counter <= 32'd0;
+                    beam_state    <=   1'b0;
+                    tx_state      <=   1'b0;
+                    rx_state      <=   1'b1;
+                    bf_inc <= 1'b0;
+//                    bf_rst <= 1'b0;
+                    bf_rtn <= 1'b0;
+                end
+            end
+            
+            // 接收数据
+            else if (rx_state == 1'b1) begin
+                if (bit_in_tvalid) begin // 4.1 15：00注释掉
+//                    rx_state <= 1'b1;
+//                    tx_state <= 1'b0;
+//                    beam_state <= 1'b0;
+//                    pause_counter  =   pause_counter + 32'd1;
+//                    counter <= 32'd1;
+                    pause_state <= 1'b1;
+                    init_state <= 1'b1;
+//                    rx_cnt <= rx_cnt + 8'd1;
+//                    rx_cnt = rx_cnt + 8'd1;
+//                    rx_data[rx_segment*16+:16] = bit_in_tdata;
+//                    data_rx    =  rx_data[rx_segment*16+:16];
+//                    if (rx_segment < 8'd6 ) begin
+                    if (rx_segment < 16'd4799 && (rx_cnt != 0 )) begin
+                        rx_segment <= rx_segment + 16'd1;
+                    end
+//                    else begin
+//                        rx_segment  =  8'd0;// 接收完成，专为发送
+//                    end
+                    
+                    rx_data[rx_segment*16+:16]   =   bit_in_tdata;
+                                      data_rx    =   rx_data[rx_segment*16+:16];
+                    rx_cnt <= rx_cnt + 8'd1;
+                    if(rx_segment ==  16'd4799) begin
+                    // 更新当前波束的信噪比
+                        tx_segment  =  16'd0;
+                        tx_cnt      =  1'b0;
+                        snr[rx_data[39:32]] <= SNR;
+//                        rx_state <= 1'b0;
+//                        tx_state <= 1'b1;
+//                        beam_state <= 1'b0;
+                        // 如果当前波束的信噪比比最佳波束的信噪比大，则更新最佳的波束和信噪比
+                        if (SNR > best_snr) begin
+                            best_bs_beam    <=  rx_data[39:32];//存储一个时隙内64个波束中信噪比最大的发送波束号
+                            best_user_beam  <=  user_beam;
+                            best_snr <= SNR;//存储一个时隙内64个波束中信噪比最大的信噪比
+                        end
+                    end
+                  end // 4.1 15：00注释掉
+               end
+            //用户端波束号在一个时隙内更新一次
+//                if (tx_state) begin
+                if (scan_Pulse == 1'b1) begin
+                    counter    <= 32'd0;
+                    pause_state <= 1'b0;
+                    if(rx_counter >= 1) begin //user_beam从0开始
+                        user_beam = user_beam + 8'd1;
+                    end
+                    rx_counter = rx_counter + 1'b1;
+                    if(rx_counter == 64) begin
+                        user_beam  <=  8'd0;
+                        rx_counter <=  8'd0;
+                    end
+                    if(user_beam == 64) begin
+                        user_beam  <=  8'd0;
+//                        counter    <= 32'd0;
+//                        pause_state <= 1'b0;
+                    end
+                end
+            end
+        end
+    `endif
+    
+    
+    `ifdef NODE_UE //用户端发送数据模块
+    //补充用户端输出数据部分
+//        assign bit_out_tvalid =  (pause_state == 1'b1) ? bit_out_tready : ((cnt_point_transed < tx_frame_length && send_data) ? bit_out_tready : 1'b0);
+        assign bit_out_tvalid =  (tx_state == 1'b1) ? 1'b1 : 1'b0;
+//        assign bit_out_tdata  =  (pause_state == 1'b1) ? tx_data[tx_segment*16+:16] : ((pause_state == 1'b1) ? 16'd0 : tx_data[tx_segment*16+:16]); 
+        assign bit_out_tdata  =  (tx_state == 1'b1) ? tx_data[tx_segment*16+:16] : 16'hf0f0; 
+        assign bit_out_tkeep  =   2'b11;
+        assign bit_out_tstrb  =   2'b00;   
+        assign bit_in_tready  =   1'b1;
+//        assign bit_in_tready  =  (rx_state == 1'b1) ? 1'b1: 1'b0;
+        assign tx_rx_sw = (tx_state == 1'b1) ? 1'b1 : 1'b0; // RX模式(TX_RX_SW=0)或TX模式(TX_RX_SW=1)
+        assign bf_rst = (pause_state == 0) ? 1'b1 : 1'b0;
+    `endif
+    
     `ifdef NODE_BS //基站发送数据模块
     //    assign bit_out_tvalid = (cnt_point_transed < tx_frame_length && send_data) ? bit_out_tready : 1'b0;
         assign bit_out_tvalid  =  (tx_state == 1'b0)  ?  1'b0 : ((cnt_point_transed < tx_frame_length && send_data) ? bit_out_tready : 1'b0);
@@ -327,32 +538,41 @@ module beam_scan_v2(
 //        assign [7:0] synNode = (currentScanSlot == 64) ?  //在64个时隙发送完成，而且经过判断哪一个波束最好时，发送给同步模块下游节点数，各个节点的ID，以及基站与每个用户发送时的对应的波束。
         assign synNode_valid = (currentScanSlot == 64) ? 1'b1 : 1'b0;
      `endif
-    
+      `ifdef NODE_UE //用户端向同步模块发送数据模块
+//        assign [7:0] synNode = (currentScanSlot == 64) ?  
+        assign synNode_valid = (currentScanSlot == 64) ? 1'b1 : 1'b0;
+     `endif 
+     
     always @(posedge clk or negedge rst_n) //4.1 20:23 删除cnt相关代码
     begin
         if (rst_n == 1'b0) begin
             cnt_tlast <= 16'd0;
             bit_out_tlast <= 1'b0;
+            cnt_point_transed <= 16'd0;
         end
         else begin
-            if (cnt_point_transed < tx_frame_length && send_data ) begin
+            if (cnt_point_transed < tx_frame_length && init_state == 1'b1) begin // UE专用
+//            if (cnt_point_transed < tx_frame_length && send_data ) begin // BS 专用
                 if (bit_out_tready == 1'b1) begin
                 cnt_point_transed <= cnt_point_transed + 16'd1;
-                    if (cnt_tlast == (tx_frame_length - 16'd2)) begin
-                        cnt_tlast <= cnt_tlast + 16'd1;
-                        bit_out_tlast <= 1'b1; //表示一帧结束
-                    end
-                    else if (cnt_tlast == (tx_frame_length - 16'd1)) begin
-                        cnt_tlast <= 16'd0;
-                        bit_out_tlast <= 1'b0;
-                    end
-                    else begin
-                        cnt_tlast <= cnt_tlast + 16'd1;
-                        bit_out_tlast <= 1'b0;
-                    end
+                if(tx_state== 1'b1) begin // UE专用
+                        if (cnt_tlast == (tx_frame_length - 16'd2) ) begin
+                            cnt_tlast <= cnt_tlast + 16'd1;
+                            bit_out_tlast <= 1'b1; //表示一帧结束
+                        end
+                        else if (cnt_tlast == (tx_frame_length - 16'd1)) begin
+                            cnt_tlast <= 16'd0;
+                            bit_out_tlast <= 1'b0;
+                        end
+                        else begin
+                            cnt_tlast <= cnt_tlast + 16'd1;
+                            bit_out_tlast <= 1'b0;
+                        end
+                    end   // UE专用
                 end
             end
-            else if (cnt_point_transed < tx_interval && init_state) begin
+            else if (cnt_point_transed < tx_interval && init_state == 1'b1) begin  // UE专用
+//            else if (cnt_point_transed < tx_interval && init_state) begin  // BS专用
                 cnt_point_transed  <=  cnt_point_transed + 16'd1;
                 cnt_tlast <= 16'd0;
                 bit_out_tlast <= 1'b0;
